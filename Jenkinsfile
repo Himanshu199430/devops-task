@@ -3,8 +3,8 @@ pipeline {
 
     environment {
         DOCKER_IMAGE = "himanshu231230/devops-task"
-        GITHUB_TOKEN_ID = 'github-token'       // Secret text credential (GitHub PAT)
-        DOCKERHUB_CRED_ID = 'dockerhub-cred'   // Username/Password credential (DockerHub)
+        GITHUB_TOKEN_ID = 'github-token'       // GitHub PAT credential
+        DOCKERHUB_CRED_ID = 'dockerhub-cred'   // DockerHub credential
     }
 
     stages {
@@ -14,7 +14,7 @@ pipeline {
             }
         }
 
-        stage('Checkout Code (GitHub PAT)') {
+        stage('Checkout Code') {
             steps {
                 withCredentials([string(credentialsId: env.GITHUB_TOKEN_ID, variable: 'GITHUB_TOKEN')]) {
                     sh '''
@@ -26,22 +26,12 @@ pipeline {
             }
         }
 
-        stage('Install Node.js') {
+        stage('Build & Test in Docker') {
             steps {
                 sh '''
-                    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-                    apt-get install -y nodejs
-                    node -v
-                    npm --version
-                '''
-            }
-        }
-
-        stage('Build & Test') {
-            steps {
-                sh '''
-                    npm ci || npm install
-                    npm test || echo "Tests skipped/failed but continuing"
+                    # Build a temporary container to run tests
+                    docker build -t devops-task-test .
+                    docker run --rm devops-task-test npm test || echo "Tests skipped/failed"
                 '''
             }
         }
