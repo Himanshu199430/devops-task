@@ -1,11 +1,10 @@
-pipeline {
+=pipeline {
     agent any
 
     environment {
         DOCKER_IMAGE = "himanshu231230/devops-task"
-        GITHUB_TOKEN_ID = 'github-token'       // GitHub PAT credential
-        DOCKERHUB_CRED_ID = 'dockerhub-cred'   // DockerHub credential
-        DOCKERFILE_PATH = "docker/Dockerfile"  // Path to Dockerfile
+        GITHUB_TOKEN_ID = 'github-token'
+        DOCKERHUB_CRED_ID = 'dockerhub-cred'
     }
 
     options {
@@ -32,12 +31,30 @@ pipeline {
             }
         }
 
+        stage('Check Dockerfile') {
+            steps {
+                script {
+                    def dockerfilePaths = ['Dockerfile', 'docker/Dockerfile', 'jenkins/Dockerfile']
+                    def found = false
+                    for (path in dockerfilePaths) {
+                        if (fileExists(path)) {
+                            env.DOCKERFILE_PATH = path
+                            echo "✅ Dockerfile found at: ${path}"
+                            found = true
+                            break
+                        }
+                    }
+                    if (!found) {
+                        error "❌ Dockerfile not found! Checked paths: ${dockerfilePaths.join(', ')}"
+                    }
+                }
+            }
+        }
+
         stage('Build & Test in Docker') {
             steps {
                 sh """
-                    # Build Docker image for testing
                     docker build -f ${DOCKERFILE_PATH} -t devops-task-test .
-                    # Run tests and fail if tests fail
                     docker run --rm devops-task-test npm test
                 """
             }
@@ -67,7 +84,6 @@ pipeline {
                     docker stop devops-task || true
                     docker rm devops-task || true
                     docker run -d --name devops-task -p 3000:3000 ${DOCKER_IMAGE}:${BUILD_NUMBER}
-                    # Wait for container to start
                     sleep 10
                     docker ps --filter "name=devops-task"
                 """
@@ -89,11 +105,7 @@ pipeline {
     }
 
     post {
-        success {
-            echo "✅ Pipeline finished successfully."
-        }
-        failure {
-            echo "❌ Pipeline failed. Check logs."
-        }
+        success { echo "✅ Pipeline finished successfully." }
+        failure { echo "❌ Pipeline failed. Check logs." }
     }
 }
