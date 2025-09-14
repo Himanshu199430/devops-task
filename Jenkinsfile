@@ -5,6 +5,12 @@ pipeline {
         DOCKER_IMAGE = "himanshu231230/devops-task"
         GITHUB_TOKEN_ID = 'github-token'       // GitHub PAT credential
         DOCKERHUB_CRED_ID = 'dockerhub-cred'   // DockerHub credential
+        DOCKERFILE_PATH = "docker/Dockerfile"  // Path to Dockerfile
+    }
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        timeout(time: 30, unit: 'MINUTES')
     }
 
     stages {
@@ -28,17 +34,18 @@ pipeline {
 
         stage('Build & Test in Docker') {
             steps {
-                sh '''
-                    # Build a temporary container to run tests
-                    docker build -t devops-task-test .
-                    docker run --rm devops-task-test npm test || echo "Tests skipped/failed"
-                '''
+                sh """
+                    # Build Docker image for testing
+                    docker build -f ${DOCKERFILE_PATH} -t devops-task-test .
+                    # Run tests and fail if tests fail
+                    docker run --rm devops-task-test npm test
+                """
             }
         }
 
         stage('Docker Build') {
             steps {
-                sh "docker build -t ${DOCKER_IMAGE}:${BUILD_NUMBER} ."
+                sh "docker build -f ${DOCKERFILE_PATH} -t ${DOCKER_IMAGE}:${BUILD_NUMBER} ."
             }
         }
 
@@ -56,25 +63,27 @@ pipeline {
 
         stage('Deploy Locally') {
             steps {
-                sh '''
+                sh """
                     docker stop devops-task || true
                     docker rm devops-task || true
                     docker run -d --name devops-task -p 3000:3000 ${DOCKER_IMAGE}:${BUILD_NUMBER}
-                    sleep 5
+                    # Wait for container to start
+                    sleep 10
                     docker ps --filter "name=devops-task"
-                '''
+                """
             }
         }
 
         stage('Smoke Test') {
             steps {
-                sh '''
-                    set +e
-                    STATUS=$(curl -s -o /tmp/app_resp.txt -w "%{http_code}" http://localhost:3000/)
-                    echo "HTTP STATUS: $STATUS"
-                    head -c 200 /tmp/app_resp.txt || true
-                    set -e
-                '''
+                script {
+                    def status = sh(script: "curl -s -o /tmp/app_resp.txt -w '%{http_code}' http://localhost:3000/", returnStdout: true).trim()
+                    echo "HTTP STATUS: ${status}"
+                    if (status != '200') {
+                        error "❌ Smoke test failed with status ${status}"
+                    }
+                    sh "head -c 200 /tmp/app_resp.txt || true"
+                }
             }
         }
     }
