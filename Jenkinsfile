@@ -26,17 +26,20 @@ pipeline {
             }
         }
 
-        stage('Build & Test') {
-            agent {
-                docker {
-                    image 'node:20'   // Node.js Docker image
-                    args '-u root:root' // optional, ensures permission to install if needed
-                }
-            }
+        stage('Install Node.js') {
             steps {
                 sh '''
+                    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+                    apt-get install -y nodejs
                     node -v
                     npm --version
+                '''
+            }
+        }
+
+        stage('Build & Test') {
+            steps {
+                sh '''
                     npm ci || npm install
                     npm test || echo "Tests skipped/failed but continuing"
                 '''
