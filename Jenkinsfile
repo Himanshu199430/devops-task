@@ -19,8 +19,8 @@ pipeline {
         withCredentials([string(credentialsId: env.GITHUB_TOKEN_ID, variable: 'GITHUB_TOKEN')]) {
           sh '''
             set -e
-            git clone --depth 1 --branch main https://$GITHUB_TOKEN@github.com/your-username/devops-task.git .
-            git remote set-url origin https://github.com/your-username/devops-task.git || true
+            git clone --depth 1 --branch main https://$GITHUB_TOKEN@github.com/Himanshu199430/devops-task.git .
+            git remote set-url origin https://github.com/Himanshu199430/devops-task.git || true
           '''
         }
       }
