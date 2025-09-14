@@ -5,6 +5,7 @@ pipeline {
         DOCKER_IMAGE = "himanshu231230/devops-task"
         GITHUB_TOKEN_ID = 'github-token'
         DOCKERHUB_CRED_ID = 'dockerhub-cred'
+        DOCKERFILE_PATH = "Dockerfile"  // root Dockerfile
     }
 
     options {
@@ -34,18 +35,10 @@ pipeline {
         stage('Check Dockerfile') {
             steps {
                 script {
-                    def dockerfilePaths = ['Dockerfile', 'docker/Dockerfile', 'jenkins/Dockerfile']
-                    def found = false
-                    for (path in dockerfilePaths) {
-                        if (fileExists(path)) {
-                            env.DOCKERFILE_PATH = path
-                            echo "✅ Dockerfile found at: ${path}"
-                            found = true
-                            break
-                        }
-                    }
-                    if (!found) {
-                        error "❌ Dockerfile not found! Checked paths: ${dockerfilePaths.join(', ')}"
+                    if (!fileExists(env.DOCKERFILE_PATH)) {
+                        error "❌ Dockerfile not found in root directory!"
+                    } else {
+                        echo "✅ Dockerfile found at root."
                     }
                 }
             }
