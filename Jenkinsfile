@@ -5,7 +5,8 @@ pipeline {
         DOCKER_IMAGE = "himanshu231230/devops-task"
         GITHUB_TOKEN_ID = 'github-token'
         DOCKERHUB_CRED_ID = 'dockerhub-cred'
-        DOCKERFILE_PATH = "Dockerfile"  // root Dockerfile
+        DOCKERFILE_PATH = "Dockerfile"  // Adjust if Dockerfile is in a subfolder
+        GIT_BRANCH = "dev"               // Change this to the branch where Dockerfile exists
     }
 
     options {
@@ -23,11 +24,12 @@ pipeline {
         stage('Checkout Code') {
             steps {
                 withCredentials([string(credentialsId: env.GITHUB_TOKEN_ID, variable: 'GITHUB_TOKEN')]) {
-                    sh '''
+                    sh """
                         set -e
-                        git clone --depth 1 --branch main https://$GITHUB_TOKEN@github.com/Himanshu199430/devops-task.git .
+                        echo "Cloning branch ${GIT_BRANCH}..."
+                        git clone --depth 1 --branch ${GIT_BRANCH} https://\$GITHUB_TOKEN@github.com/Himanshu199430/devops-task.git .
                         git remote set-url origin https://github.com/Himanshu199430/devops-task.git || true
-                    '''
+                    """
                 }
             }
         }
@@ -36,9 +38,9 @@ pipeline {
             steps {
                 script {
                     if (!fileExists(env.DOCKERFILE_PATH)) {
-                        error "❌ Dockerfile not found in root directory!"
+                        error "❌ Dockerfile not found at path: ${env.DOCKERFILE_PATH}"
                     } else {
-                        echo "✅ Dockerfile found at root."
+                        echo "✅ Dockerfile found at path: ${env.DOCKERFILE_PATH}"
                     }
                 }
             }
@@ -47,7 +49,9 @@ pipeline {
         stage('Build & Test in Docker') {
             steps {
                 sh """
+                    echo "Building test Docker image..."
                     docker build -f ${DOCKERFILE_PATH} -t devops-task-test .
+                    echo "Running tests inside container..."
                     docker run --rm devops-task-test npm test
                 """
             }
@@ -55,7 +59,10 @@ pipeline {
 
         stage('Docker Build') {
             steps {
-                sh "docker build -f ${DOCKERFILE_PATH} -t ${DOCKER_IMAGE}:${BUILD_NUMBER} ."
+                sh """
+                    echo "Building final Docker image..."
+                    docker build -f ${DOCKERFILE_PATH} -t ${DOCKER_IMAGE}:${BUILD_NUMBER} .
+                """
             }
         }
 
@@ -64,6 +71,7 @@ pipeline {
                 script {
                     docker.withRegistry('', env.DOCKERHUB_CRED_ID) {
                         def img = docker.image("${DOCKER_IMAGE}:${BUILD_NUMBER}")
+                        echo "Pushing image ${DOCKER_IMAGE}:${BUILD_NUMBER} to DockerHub..."
                         img.push()
                         img.push("latest")
                     }
@@ -74,8 +82,11 @@ pipeline {
         stage('Deploy Locally') {
             steps {
                 sh """
+                    echo "Stopping old container if exists..."
                     docker stop devops-task || true
                     docker rm devops-task || true
+
+                    echo "Running new container..."
                     docker run -d --name devops-task -p 3000:3000 ${DOCKER_IMAGE}:${BUILD_NUMBER}
                     sleep 10
                     docker ps --filter "name=devops-task"
@@ -91,6 +102,7 @@ pipeline {
                     if (status != '200') {
                         error "❌ Smoke test failed with status ${status}"
                     }
+                    echo "✅ Smoke test passed. Sample response:"
                     sh "head -c 200 /tmp/app_resp.txt || true"
                 }
             }
